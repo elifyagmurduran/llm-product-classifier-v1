@@ -275,6 +275,7 @@ prompt:
 # ── Pipeline Settings ──────────────────────────────────────
 settings:
   batch_size: 10              # Rows sent to the LLM per API call
+  max_rpm: 30                 # Max LLM requests per minute (rate limiter)
 ```
 
 ### Config validation
@@ -325,9 +326,11 @@ python app/main.py
 - Loops until no unclassified rows remain
 - Safe to interrupt and re-run — already-classified rows are always skipped
 
-### Controlling batch size
+### Controlling batch size and rate limits are both set `config.yaml`. Larger batches mean fewer API calls but larger prompts per call. A value of 10–20 rows is a good starting point for most models and table schemas.
 
-Set `batch_size` in `config.yaml`. Larger batches mean fewer API calls but larger prompts per call. A value of 10–20 rows is a good starting point for most models and table schemas.
+### Controlling the rate limit
+
+Set `max_rpm` in `config.yaml` under `settings`. This controls how many requests per minute the pipeline sends to Azure OpenAI. The default is 30 RPM. If you notice 429 errors in the logs, lower this value. If your Azure deployment has a higher quota, you can increase it for faster throughput.
 
 ---
 
@@ -392,7 +395,8 @@ llm-classifies-data/
 │   │   └── classification_orchestrator.py  # Batcher, Parser, run_classification
 │   └── utils/
 │       ├── console.py                  # Formatted terminal output
-│       └── logging.py                  # File + console structured logging
+│       ├── logging.py                  # File + console structured logging
+│       └── rate_limiter.py             # Token-bucket RPM rate limiter
 │
 ├── tests/
 │   └── test_runner.py                  # Safe test mode — read from DB, write to JSON
@@ -449,5 +453,6 @@ The pipeline is split into four independent layers. Each layer only depends on t
 | **Batch checkpointing** | Progress is written to `output.json` after every batch in test mode |
 | **Formatted console output** | Per-row classification results visible in the terminal as each batch completes |
 | **Structured logging** | Full run logs written to `logs/` with timestamps and batch-level detail |
+| **Rate limiting** | Built-in token-bucket rate limiter prevents Azure 429 throttling; auto-retries with `Retry-After` if it occurs |
 | **Flexible config path** | Override via `CONFIG_PATH` env var to use a different YAML for different environments |
 

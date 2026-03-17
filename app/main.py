@@ -44,6 +44,9 @@ def classify_batch_and_update(
     df: pd.DataFrame,
     batcher: Batcher,
     cfg: PipelineConfig,
+    batch_num: int,
+    total_batches: int,
+    row_offset: int,
 ) -> int:
     """Classify a batch and write results back to DB.
 
@@ -69,6 +72,10 @@ def classify_batch_and_update(
         batch_size=cfg.batch_size,
         display_column=cfg.display_column,
         partial_output_json=None,  # No local JSON in production
+        show_console_start=False,
+        progress_batch_offset=batch_num - 1,
+        progress_total_batches=total_batches,
+        display_row_offset=row_offset,
     )
 
     # Prepare updates for DB
@@ -147,11 +154,18 @@ def main() -> int:
         console.info("Unclassified Rows", f"{total_unclassified} rows to process")
 
         # Initialize LLM client
-        client = AzureClient.from_env(system_message=cfg.prompt.system_message)
+        client = AzureClient.from_env(
+            system_message=cfg.prompt.system_message,
+            max_rpm=cfg.max_rpm,
+        )
         if client is None:
             raise PipelineError("Azure OpenAI not configured (missing env vars)")
 
-        logger.info("Azure client initialized: deployment=%s", client.deployment)
+        logger.info(
+            "Azure client initialized: deployment=%s, rate_limit=%d RPM",
+            client.deployment,
+            cfg.max_rpm,
+        )
 
         builder = PromptBuilder(
             context_columns=cfg.context_columns,
@@ -165,6 +179,7 @@ def main() -> int:
         # Process in batches
         total_updated = 0
         batch_num = 0
+        rows_processed = 0
 
         # Calculate total batches for progress
         total_batches = (total_unclassified + cfg.batch_size - 1) // cfg.batch_size
@@ -194,8 +209,17 @@ def main() -> int:
             logger.info("Processing batch %d: %d rows", batch_num, len(df))
 
             # Classify and update
-            updated = classify_batch_and_update(connector, df, batcher, cfg)
+            updated = classify_batch_and_update(
+                connector,
+                df,
+                batcher,
+                cfg,
+                batch_num=batch_num,
+                total_batches=total_batches,
+                row_offset=rows_processed,
+            )
             total_updated += updated
+            rows_processed += len(df)
 
             batch_elapsed = time.time() - batch_start
             remaining = total_unclassified - total_updated
@@ -222,6 +246,7 @@ def main() -> int:
 
         logger.info("[PRODUCTION MODE] Pipeline complete in %.1fs", total_elapsed)
         logger.info("Total rows updated: %d", total_updated)
+        logger.info("Rate limiter stats: %s", client.rate_limiter_stats)
 
         console.info("Complete", f"Updated {total_updated} rows in {total_elapsed:.1f}s")
         console.pipeline_finished(success=True)

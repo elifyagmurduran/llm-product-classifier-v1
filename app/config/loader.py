@@ -47,6 +47,7 @@ class PipelineConfig:
     fallback_label: str
     prompt: PromptConfig
     batch_size: int
+    max_rpm: int
     test_row_limit: int
 
     # --- Derived helpers ---
@@ -163,6 +164,7 @@ def _parse_and_validate(raw: dict, path: Path) -> PipelineConfig:
     # --- settings ---
     settings_raw = raw.get("settings", {})
     batch_size = int(settings_raw.get("batch_size", 10))
+    max_rpm = int(settings_raw.get("max_rpm", 30))
     test_row_limit = int(settings_raw.get("test_row_limit", 100))
 
     return PipelineConfig(
@@ -174,6 +176,7 @@ def _parse_and_validate(raw: dict, path: Path) -> PipelineConfig:
         fallback_label=fallback_label,
         prompt=prompt,
         batch_size=batch_size,
+        max_rpm=max_rpm,
         test_row_limit=test_row_limit,
     )
 

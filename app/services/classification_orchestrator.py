@@ -126,6 +126,10 @@ def run_classification(
     batch_size: int,
     display_column: str = "product_name",
     partial_output_json: Optional[str] = None,
+    show_console_start: bool = True,
+    progress_batch_offset: int = 0,
+    progress_total_batches: Optional[int] = None,
+    display_row_offset: Optional[int] = None,
 ) -> pd.DataFrame:
     """Classify products into the target column."""
     # Ensure target column exists
@@ -135,6 +139,7 @@ def run_classification(
     total_rows = len(df)
     initial_unclassified = df[target_col].isna().sum()
     total_batches = (initial_unclassified + batch_size - 1) // batch_size
+    effective_total_batches = progress_total_batches or total_batches
     
     logger.info(
         "Starting classification: %d total rows, %d unclassified, "
@@ -146,14 +151,17 @@ def run_classification(
     )
     
     # Console: show classification start
-    console.classification_start(total_rows, batch_size, initial_unclassified)
+    if show_console_start:
+        console.classification_start(total_rows, batch_size, initial_unclassified)
     
     jm = JsonManager()
     batch_counter = 0
+    rows_seen_for_display = 0
     
     for batch_df in batcher.iterate_unclassified_batches(df, target_col, batch_size):
         batch_start_time = time.time()
         batch_num = batch_counter + 1
+        global_batch_num = progress_batch_offset + batch_num
         row_ids = batch_df["ROW_ID"].tolist()
         
         # Get display names for console output
@@ -164,7 +172,20 @@ def run_classification(
             product_names = [f"Row {rid}" for rid in row_ids]
         
         # Console: show batch start
-        console.batch_start(batch_num, total_batches, row_ids, product_names)
+        if display_row_offset is not None:
+            row_count = len(batch_df)
+            row_start = display_row_offset + rows_seen_for_display
+            row_ids_for_console = list(range(row_start, row_start + row_count))
+            rows_seen_for_display += row_count
+        else:
+            row_ids_for_console = row_ids
+
+        console.batch_start(
+            global_batch_num,
+            effective_total_batches,
+            row_ids_for_console,
+            product_names,
+        )
         
         # Log detailed batch info
         logger.debug("Batch %d: row_ids=%s", batch_num, row_ids)
@@ -250,8 +271,8 @@ def run_classification(
         # Log detailed results
         logger.info(
             "Batch %d/%d: %d/%d classified in %.1fs. Labels: %s. Remaining: %d/%d",
-            batch_num,
-            total_batches,
+            global_batch_num,
+            effective_total_batches,
             applied,
             len(batch_df),
             batch_elapsed,

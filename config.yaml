@@ -9,22 +9,28 @@
 # --- Source Table ---
 source:
   schema: "playground"
-  table: "promo_bronze"
+  table: "promo_bronze_vec1536"
   primary_key: "id"
 
 # --- Classification Target ---
 # The column that will be written to (created if missing in local mode).
 target:
-  column: "gs1_segment"
+  column: "category"
 
 # --- Context Columns ---
 # Columns sent to the LLM as classification evidence.
 # These must exist in the source table.
 context_columns:
+  - "store"
+  - "country"
   - "product_name"
+  - "product_name_en"
+  - "origin"
+  - "class"
   - "packaging_value"
   - "packaging_unit"
   - "packaging_type"
+  
 
 # --- Display Column ---
 # Column used for human-readable logging/console output.
@@ -168,11 +174,39 @@ labels:
     description: >
       Wet and dry pet food, treats, cat litter, and other supplies
       for dogs, cats, and household pets.
+  - name: "Clothing & Accessories"
+    description: >
+      Apparel and wearable items sold in supermarket non-food ranges,
+      including socks, underwear, t-shirts, pyjamas, baby clothing,
+      seasonal garments, and fashion accessories.
+  - name: "Electronics & Small Appliances"
+    description: >
+      Consumer electronics and electrical goods such as headphones,
+      chargers, batteries, cables, kitchen gadgets, hair tools,
+      and other small plug-in or battery-powered appliances.
+  - name: "Home, Kitchen & Lifestyle"
+    description: >
+      Non-electrical home and lifestyle products including cookware,
+      utensils, storage, bedding, towels, stationery, decor,
+      and general household accessories.
+  - name: "Toys & Games"
+    description: >
+      Children's toys and family entertainment products including dolls,
+      action figures, puzzles, card games, board games, and activity sets.
+  - name: "Sports, Cycling & Outdoor"
+    description: >
+      Leisure and outdoor products including bicycles, helmets, pumps,
+      fitness accessories, camping gear, and picnic or travel equipment.
+  - name: "Garden & DIY"
+    description: >
+      Gardening and home maintenance products including seeds, bulbs,
+      compost, planters, hand tools, gloves, watering equipment,
+      and basic DIY tools or hardware.
   # ── Fallback ───────────────────────────────────────────────
   - name: "Other"
     description: >
       Products that do not fit any of the above categories — for example
-      stationery, electronics, clothing, gardening, or seasonal items.
+      automotive accessories, books, or uncommon seasonal products.
       Use this ONLY when no other category is a reasonable fit.
 
 # --- Fallback Label ---
@@ -215,4 +249,5 @@ prompt:
 # --- Pipeline Settings ---
 settings:
   batch_size: 10
+  max_rpm: 30                 # Max LLM requests per minute (rate limiter)
   test_row_limit: 100        # Rows fetched in test mode (python tests/test_runner.py)

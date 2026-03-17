@@ -129,11 +129,18 @@ def classify_data(df: pd.DataFrame, cfg: PipelineConfig) -> float:
 
     signal.signal(signal.SIGINT, _on_interrupt)
 
-    client = AzureClient.from_env(system_message=cfg.prompt.system_message)
+    client = AzureClient.from_env(
+        system_message=cfg.prompt.system_message,
+        max_rpm=cfg.max_rpm,
+    )
     if client is None:
         raise PipelineError("Azure OpenAI not configured (missing env vars)")
 
-    logger.info("Azure client initialized: deployment=%s", client.deployment)
+    logger.info(
+        "Azure client initialized: deployment=%s, rate_limit=%d RPM",
+        client.deployment,
+        cfg.max_rpm,
+    )
 
     builder = PromptBuilder(
         context_columns=cfg.context_columns,
